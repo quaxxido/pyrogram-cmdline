@@ -3,9 +3,11 @@ from pyrogram import Client, filters
 import pyautogui
 import io
 import sys
+import platform,socket,re,uuid,json,psutil,logging
 from win10toast import ToastNotifier
 from pyrogram import Client, filters
 from PIL import ImageGrab
+import webbrowser
 import random
 import os
 import requests
@@ -16,7 +18,58 @@ def press_key(client, message):
     keys = message.text.split()[1:]
     pyautogui.hotkey(*keys)
 # eg /press q u a x  a l e r t
+@app.on_message(filters.command(['rickroll']))
+def press_key(client, message):
+    browser = webbrowser.get()
+    browser.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+def get_ip():
+    response = requests.get('https://api64.ipify.org?format=json').json()
+    return response["ip"]
 
+@app.on_message(filters.command(['pcinfo']))
+def getSystemInfo(client, message):
+        info={}
+        info['platform']=platform.system()
+        info['platform-release']=platform.release()
+        info['platform-version']=platform.version()
+        info['architecture']=platform.machine()
+        info['hostname']=socket.gethostname()
+        info['ip-address']=get_ip()
+        info['mac-address']=':'.join(re.findall('..', '%012x' % uuid.getnode()))
+        info['processor']=platform.processor()
+        info['ram']=str(round(psutil.virtual_memory().total / (1024.0 **3)))+" GB"
+        json_str = json.dumps(info, separators=(',', ':'))
+
+        # Remove brackets and double quotes
+        result = json_str.replace('{', '').replace('}', '').replace('"', '')
+
+        # Add newline character after each key-value pair
+        result = result.replace(',', '\n')
+        message.reply_text(result)
+
+@app.on_message(filters.command(['web']))
+async def open_link(_, message):
+    try:
+        # Get the link from the command argument
+        link = message.text.split(' ')[1]
+
+        # Check if the link starts with 'http://' or 'https://'
+        if not link.startswith('http://') and not link.startswith('https://'):
+            # If not, add 'https://' to the beginning of the link
+            link = 'https://' + link
+
+        # Get the user's default web browser
+        browser = webbrowser.get()
+
+        # Open the link in the user's default web browser
+        browser.open(link)
+
+        # Send a confirmation message to the user
+        await message.reply_text(f"Opened {link} in your default web browser!")
+
+    except IndexError:
+        # If the user didn't provide a link in the command argument
+        await message.reply_text("Please provide a link to open!")
 @ app.on_message(filters.command("alert"))
 def show_alert(client, message):
 
