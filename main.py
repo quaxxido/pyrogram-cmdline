@@ -243,7 +243,20 @@ def media_command_handler(client, message):
         "Select a volume control option:",
         reply_markup=volume_control_markup
     )
-
+@ app.on_message(filters.command("cursorm", prefixes="/"))
+def move_cursor(client: Client, message: Message):
+    direction = message.text.split()[1].lower()
+    pixels = int(message.text.split()[2])
+    if direction == "down":
+        mouse.move(0, pixels, absolute=False, duration=0.1)
+    elif direction == "up":
+        mouse.move(0, -pixels, absolute=False, duration=0.1)
+    elif direction == "right":
+        mouse.move(pixels, 0, absolute=False, duration=0.1)
+    elif direction == "left":
+        mouse.move(-pixels, 0, absolute=False, duration=0.1)
+    else:
+        client.send_message(message.chat.id, "Invalid direction provided. Please use /cursor <direction> <pixels>")
 # Handler function for the media command
 @app.on_message(filters.command("cursor"))
 def media_command_handler(client, message):
